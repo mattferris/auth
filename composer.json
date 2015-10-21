@@ -1,6 +1,6 @@
 {
     "name": "mattferris/auth",
-    "description": "An exstensible authentivation library for PHP",
+    "description": "An extensible authentivation library for PHP",
     "license": "BSD-2-Clause",
     "autoload": {
         "psr-4": {"MattFerris\\Auth\\": "src/"}
