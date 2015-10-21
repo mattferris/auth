@@ -1,7 +1,7 @@
 Auth
 ====
 
-An exstensible authentication library for PHP.
+An extensible authentication library for PHP.
 
     use MattFerris\Auth\Authenticator;
 
@@ -9,13 +9,21 @@ An exstensible authentication library for PHP.
     $auth->register($authProvider);
     $response = $auth->authenticate($request);
 
-Auth Providers
---------------
+Requests
+--------
 
-Must implement `ProviderInterface`.
+Every authentication request must be an instance of `RequestInterface`. Handlers subscribe to different event types based on the request's class. For example, a handler may subscribe to `MattFerris\Auth\PasswordRequest`, and will only be called when an instance of `MattFerris\Auth\PasswordReqeust` is received.
+
+    $auth->authenticate(new MattFerris\Auth\PasswordRequest(...));
+
+Providers
+---------
+
+Providers register handlers and manipulators which handle authentication requests, and manipulate authentication responses (respectively).
 
     use MattFerris\Auth\ProviderInterface;
     use MattFerris\Auth\RequestInterface;
+    use MattFerris\Auth\ResponseInterface;
     use MattFerris\Auth\Response;
 
     class Provider implements ProviderInterface
@@ -26,29 +34,13 @@ Must implement `ProviderInterface`.
                 'handlers' => [
                     'PasswordRequest' => [$this, 'passwordAuth'],
                     'PrivateKeyRequest' => function (RequestInterface $request) {
-                        // do stuff here
+                        // do private key stuff here
                     }
                 ],
                 'manipulators' => [
                     'PasswordResponse' => [$this, 'manipulatePasswordResponse']
                 ]
             ];
-        }
-
-        public function passwordAuth(RequestInterface $request)
-        {
-            $response = new Response(false);
-
-            if ($this->db->verify($request->getUsername(), $request->getPassword()) {
-                $response = new Response(true, $this->generateToken(
-                    array(
-                        'username' => $request->getUsername(),
-                        'uid' => $userId,
-                        'expiry' => time() + 3600
-                    )
-                ));
-            }
-            return $response;
         }
     }
 
@@ -57,10 +49,48 @@ Handlers
 
 Handlers provide mechanisms for authenticating requests. Handlers for a particular request are processed in the order they were registered. If a handler returns a response no further handlers are processed. Handlers can return either null (no response), or an instance of `ResponseInterface`.
 
+In the above example, `$this->passwordAuth` was defined as a handler. It's implementation might look like:
+
+    public function passwordAuth(RequestInterface $request)
+    {
+        // prepare an auth-failed response by default
+        $response = new Response(false);
+
+        // verify the username and password against the database
+        if ($this->db->verify($request->getUsername(), $request->getPassword()) {
+
+            // everything matched, so generate an auth-success response, including
+            // the username, uid and auth expiry
+            $response = new Response(true, $this->generateToken(
+                array(
+                    'username' => $request->getUsername(),
+                    'uid' => $userId,
+                    'expiry' => time() + 3600
+                )
+            ));
+        }
+
+        return $response;
+    }
+
+Responses
+---------
+
+Handlers return instances of `ResponseInterface` that contain the status of the authentication request and any additional information provided by the handler. The status of the response can be determined by calling `isValid()`.
+
+    $response = $auth->authenticate($request);
+    if ($response->isValid()) {
+        echo 'success';
+    } else {
+        echo 'failed';
+    }
+
 Manipulators
 ------------
 
-Manipulators allow for the modification of responses. As with handlers, manipulators are processed in the order the were registered, with processing stopping when a response is returned. Manipulators allow for more sophisticated responses to be generated without complicating the authentication itself. For example, users can login to your service via multiple remote services (Google, Facebook, etc..) and then are issued a login token. You could register handlers for each remote service:
+Manipulators allow for the modification of responses. As with handlers, manipulators are processed in the order the were registered, with processing stopping when a response is returned. Manipulators allow for more sophisticated responses to be generated without complicating the authentication itself.
+
+For example, users can login to your service via multiple remote services (Google, Facebook, etc..) and then be issued a login token. You could register handlers for each remote service:
 
     namespace MyApp;
 
@@ -92,7 +122,7 @@ Manipulators allow for the modification of responses. As with handlers, manipula
 
         protected function generateToken(...)
         {
-            // blah, blah, blah
+            // token generation stuff
         }
     }
 
@@ -138,49 +168,3 @@ This manipulator can take any valid auth request and generate a response with a 
 
     $response = $auth->authenticate(new GoogleRequest());
     setCookie('auth_token', $response->getAttribute('token'));
-
-Requests
---------
-
-Must implement `RequestInterface`. Providers register to handle various requests. Specific types of requests have unique implementations defined by their own interfaces. For example, `PasswordRequest` implements `PasswordRequestInterface` and provides two additional methods: `getUsername()` and `getPassword()`.
-
-    interface PasswordRequestInterface extends RequestInterface
-    {
-        public function getUsername();
-        public function getPassword();
-    }
-
-    class PasswordRequest implements PasswordRequestInterface
-    {
-        protected $username;
-        protected $password;
-
-        public function __construct($username, $password)
-        {
-            $this->username = $username;
-            $this->password = $password;
-        }
-
-        public function getUsername()
-        {
-            return $this->username;
-        }
-
-        public function getPassword()
-        {
-            return $this->password;
-        }
-    }
-
-    $response = $auth->authenticate(new PasswordRequest($username, $password));
-
-Responses
----------
-
-Must implement `ResponseInterface`. Has one method, `isValid()`. `TokenResponse` accepts two arguments, `status` and `token`; has one extra method `getToken()`.
-
-    $response = new TokenResponse($status, $token);
-
-    if ($response->isValid()) {
-        echo $response->getToken();
-    }
