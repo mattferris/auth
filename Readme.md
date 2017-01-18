@@ -21,26 +21,26 @@ Providers
 
 Providers register handlers and manipulators which handle authentication requests, and manipulate authentication responses (respectively).
 
-    use MattFerris\Auth\ProviderInterface;
+    use MattFerris\Provider\ProviderInterface;
     use MattFerris\Auth\RequestInterface;
     use MattFerris\Auth\ResponseInterface;
     use MattFerris\Auth\Response;
 
     class Provider implements ProviderInterface
     {
-        public function provides()
+        public function provides($consumer)
         {
-            return [
-                'handlers' => [
-                    'PasswordRequest' => [$this, 'passwordAuth'],
-                    'PrivateKeyRequest' => function (RequestInterface $request) {
-                        // do private key stuff here
-                    }
-                ],
-                'manipulators' => [
-                    'PasswordResponse' => [$this, 'manipulatePasswordResponse']
-                ]
-            ];
+            // $consumer contains an instance of Authenticator
+            $authenticator = $consumer;
+
+            $authenticator
+                ->handle('PassowrdRequest', [$this, 'passwordAuth'])
+                ->handle('PrivateKeyRequest', function (RequestInterface $request) {
+                    // do private key stuff here
+                });
+
+            $authentcator
+                ->manipulate('PasswordResponse',  [$this, 'manipulatePasswordResponse']);
         }
     }
 
@@ -94,18 +94,15 @@ For example, users can login to your service via multiple remote services (Googl
 
     namespace MyApp;
 
-    use MattFerris\Auth\ProviderInterface
+    use MattFerris\Provider\ProviderInterface
 
     class RemoteServicesProvider implements ProviderInterface
     {
-        public function provides()
+        public function provides($consumer)
         {
-            return [
-                'handlers' => [
-                    'MyApp\\GoogleRequest' => [$this, 'handleGoogleRequest'],
-                    'MyApp\\FacebookRequest' => [$this, 'handleFacebookRequest']
-                ]
-            ];
+            $consumer
+                ->handle('MyApp\\GoogleRequest', [$this, 'handleGoogleRequest'])
+                ->handle('MyApp\\FacebookRequest', [$this, 'handleFacebookRequest']);
         }
 
         public function handleGoogleRequest(GoogleRequest $request)
@@ -130,18 +127,14 @@ Alternatively, you could decouple the token generation from the authentication u
 
     namespace MyApp;
 
-    use MattFerris\Auth\ProviderInterface;
+    use MattFerris\Privder\ProviderInterface;
     use MattFerris\Auth\Response;
 
     class TokenManiplatorProvider implements ProviderInterface
     {
-        public function provides()
+        public function provides($consumer)
         {
-            return [
-                'manipulators' => [
-                    'MattFerris\\Auth\\Response' => [$this, 'manipulateResponse']
-                ]
-            ];
+            $consumer->manipulate('MattFerris\\Auth\\Response', [$this, 'manipulateResponse']);
         }
 
         public function manipulateResponse(Response $response)

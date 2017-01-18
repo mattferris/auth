@@ -7,22 +7,13 @@ class AuthenticatorTest extends PHPUnit_Framework_TestCase
 {
     public function testProvides()
     {
-        $provider = $this->getMockBuilder('MattFerris\Auth\ProviderInterface')
+        $provider = $this->getMockBuilder('MattFerris\Provider\ProviderInterface')
             ->setMethods(array('provides', 'doFooAuth', 'manipulateFoo'))
             ->getMock();
 
         $provider->expects($this->once())
             ->method('provides')
-            ->willReturn(array(
-                'handlers' => array(
-                    'FooRequest' => array($provider, 'doFooAuth'),
-                    'BarRequest' => function(){}
-                ),
-                'manipulators' => array(
-                    'FooResponse' => array($provider, 'manipulateFoo'),
-                    'BarResponse' => function(){}
-                )
-            ));
+            ->with($this->isInstanceOf('MattFerris\Auth\Authenticator'));
 
         $auth = new Authenticator();
         $auth->register($provider);
@@ -42,33 +33,13 @@ class AuthenticatorTest extends PHPUnit_Framework_TestCase
             ->setMethods(array('isValid', 'getAttributes'))
             ->getMock();
 
-        $provider = $this->getMockBuilder('MattFerris\Auth\ProviderInterface')
-            ->setMethods(array('provides', 'doFooAuth'))
-            ->getMock();
-
-        $provider->expects($this->once())
-            ->method('provides')
-            ->willReturn(array(
-                'handlers' => array(
-                    'FooRequest' => array($provider, 'doFooAuth'),
-                    'BarRequest' => function (BarRequest $request) use ($response) {
-                        return $response;
-                    }
-                )
-            ));
-
-        $provider->expects($this->once())
-            ->method('doFooAuth')
-            ->with($requestA)
-            ->willReturn($response);
-
         $auth = new Authenticator();
-        $auth->register($provider);
+
+        $auth->handle('FooRequest', function (RequestInterface $request) use ($response) {
+            return $response;
+        });
 
         $resp = $auth->authenticate($requestA);
-        $this->assertInstanceOf('MattFerris\Auth\ResponseInterface', $resp);
-
-        $resp = $auth->authenticate($requestB);
         $this->assertInstanceOf('MattFerris\Auth\ResponseInterface', $resp);
     }
 
@@ -88,27 +59,16 @@ class AuthenticatorTest extends PHPUnit_Framework_TestCase
             ->setMethods(array('isValid', 'getAttributes'))
             ->getMock();
 
-        $provider = $this->getMockBuilder('MattFerris\Auth\ProviderInterface')
-            ->setMethods(array('provides'))
-            ->getMock();
-
-        $provider->expects($this->once())
-            ->method('provides')
-            ->willReturn(array(
-                'handlers' => array(
-                    'FooRequest' => function (FooRequest $request) use ($fooResponse) {
-                        return $fooResponse;
-                    }
-                ),
-                'manipulators' => array(
-                    'FooResponse' => function (FooResponse $response) use ($barResponse) {
-                        return $barResponse;
-                    }
-                )
-            ));
-
         $auth = new Authenticator();
-        $auth->register($provider);
+
+        $auth->handle('FooRequest', function (FooRequest $request) use ($fooResponse) {
+            return $fooResponse;
+        });
+
+        $auth->manipulate('FooResponse', function (FooResponse $response) use ($barResponse) {
+            return $barResponse;
+        });
+
         $resp = $auth->authenticate($request);
         $this->assertInstanceOf('BarResponse', $resp);
     }

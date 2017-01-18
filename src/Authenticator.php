@@ -14,6 +14,8 @@
 
 namespace MattFerris\Auth;
 
+use MattFerris\Provider\ProviderInterface;
+
 class Authenticator implements AuthenticatorInterface
 {
     /**
@@ -78,21 +80,7 @@ class Authenticator implements AuthenticatorInterface
      */
     public function register(ProviderInterface $provider)
     {
-        $provides = $provider->provides();
-
-        if (isset($provides['handlers'])) {
-            foreach ($provides['handlers'] as $request => $handler) {
-                $this->handle($request, $handler);
-            }
-        }
-
-        if (isset($provides['manipulators'])) {
-            foreach ($provides['manipulators'] as $response => $manipulator) {
-                $this->manipulate($response, $manipulator);
-            }
-        }
-
-        return $this;
+        $provider->provides($this);
     }
 
     /**
